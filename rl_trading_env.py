@@ -204,7 +204,7 @@ class TradingEnv(gym.Env):
                 reward += 3.0  # V23: 从2.0提高到3.0
             
             # J. 更新追踪止损 (V23新增)
-            self._update_trailing_stop(current_price, total_cost, num_bullets)
+            self._update_trailing_stop(price, total_cost, num_bullets)
             
             # K. 超时强制清仓
             first_entry_step = self.hold_positions[0]['step']

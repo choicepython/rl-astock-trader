@@ -460,14 +460,22 @@ class IndicatorStrategy:
                 avg_cost_ratio = 0
                 drawdown = 0
             
-            state_features = np.array([
-                current_count / max_bullets,
-                floating_pnl_pct / 10,
-                hold_days / self.max_hold_days,
-                avg_cost_ratio / 10,
-                drawdown / 5,
-                self.consecutive_profit_days / 5
-            ], dtype=np.float32)
+            # 计算追踪止损距离
+                if hasattr(self, 'trailing_stop_price') and self.trailing_stop_price > 0:
+                    trailing_stop_distance = (price - self.trailing_stop_price) / self.trailing_stop_price * 100
+                else:
+                    trailing_stop_distance = 0
+                
+                state_features = np.array([
+                    current_count / max_bullets,
+                    floating_pnl_pct / 10,
+                    hold_days / self.max_hold_days,
+                    avg_cost_ratio / 10,
+                    drawdown / 5,
+                    self.consecutive_profit_days / 5,
+                    trailing_stop_distance / 5,
+                    row['atr'] * 100
+                ], dtype=np.float32)
             
             obs = np.concatenate([tech_features, state_features])
             action, _states = self.rl_model.predict(obs, deterministic=True)
