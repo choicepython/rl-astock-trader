@@ -29,10 +29,14 @@ env/
 # IDE
 .idea/
 .vscode/
-.trae/
 *.swp
 *.swo
 *~
+
+# Trae skills (allow)
+!.trae/
+!.trae/skills/
+!.trae/skills/**/
 
 # Jupyter
 .ipynb_checkpoints/
