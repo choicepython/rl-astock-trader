@@ -292,6 +292,9 @@ class IndicatorStrategy:
         self.last_add_price = 0  # 最近一次加仓价格
         self.consecutive_add_count = 0  # 连续加仓次数，3次后强制减仓
         self.stop_loss_cooldown = 0  # 止损冷静期
+        self.trailing_stop_price = 0  # 追踪止损价
+        self.trailing_stop_initialized = False  # 追踪止损是否初始化
+        self.min_trailing_stop = 3.0  # 最小追踪止损百分比
         bullet_size_val = initial_cash * 0.1
         max_bullets = 9  # 9颗封顶
         max_action_bullets = 3
@@ -376,6 +379,37 @@ class IndicatorStrategy:
                     self.strategy_score += 2.0
                 
                 self.prev_floating_profit = stock_return_pct
+                
+                # 更新追踪止损
+                if stock_return_pct >= self.min_trailing_stop:
+                    new_stop_price = price * (1 - self.min_trailing_stop / 100)
+                    if new_stop_price > self.trailing_stop_price:
+                        self.trailing_stop_price = new_stop_price
+                        print(f"[{dt.date()}] 追踪止损更新: {self.trailing_stop_price:.2f}")
+                
+                # 追踪止损检查
+                if self.trailing_stop_price > 0 and price <= self.trailing_stop_price:
+                    num_bullets = len(self.hold_positions)
+                    total_cost = num_bullets * bullet_size_val
+                    total_shares = sum(bullet_size_val / p['price'] for p in self.hold_positions)
+                    revenue = total_shares * price
+                    profit_pct = (revenue - total_cost) / total_cost * 100
+                    
+                    self.strategy_score -= 10
+                    self.strategy_score += profit_pct * 0.5
+                    
+                    if profit_pct > 0: win_count += 1
+                    total_trade_count += 1
+                    cash += revenue
+                    
+                    print(f"[{dt.date()}] 【追踪止损】: {price:.2f}, 收益: {profit_pct:.2f}%, 评分: {self.strategy_score:.1f}")
+                    self.hold_positions = []
+                    self.prev_floating_profit = 0
+                    self.max_trade_profit = 0
+                    self.consecutive_profit_days = 0
+                    self.trailing_stop_price = 0
+                    self.trailing_stop_initialized = False
+                    continue
             else:
                 self.prev_floating_profit = 0
                 self.max_trade_profit = 0
@@ -413,15 +447,15 @@ class IndicatorStrategy:
                     self.consecutive_profit_days = 0
                     continue
 
-            # 1.5 动态止损检查 (浮亏超过6%立即止损)
-            if self.hold_positions and floating_pnl_pct <= -6:
+            # 1.5 动态止损检查 (浮亏超过5%立即止损)
+            if self.hold_positions and floating_pnl_pct <= -5:
                 num_bullets = len(self.hold_positions)
                 total_cost = num_bullets * bullet_size_val
                 total_shares = sum(bullet_size_val / p['price'] for p in self.hold_positions)
                 revenue = total_shares * price
                 profit_pct = (revenue - total_cost) / total_cost * 100
                 
-                self.strategy_score -= 30  # 止损惩罚
+                self.strategy_score -= 15  # 止损惩罚
                 self.strategy_score += profit_pct * 0.5
                 
                 if profit_pct > 0: win_count += 1
