@@ -33,11 +33,6 @@ env/
 *.swo
 *~
 
-# Trae skills (allow)
-!.trae/
-!.trae/skills/
-!.trae/skills/**/
-
 # Jupyter
 .ipynb_checkpoints/
 .ipynb
