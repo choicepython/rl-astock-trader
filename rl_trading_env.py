@@ -38,7 +38,8 @@ class TradingEnv(gym.Env):
         # 动态止损参数
         self.atr_stop_multiplier = 2.0  # ATR止损倍数
         self.trailing_stop_enabled = True  # 启用追踪止损
-        self.min_trailing_stop = 3.0  # 最小追踪止损百分比
+        self.min_trailing_stop = 5.0  # 优化：最小追踪止损百分比从3%提高到5%
+        self.stop_loss_cooldown = 0  # 优化：止损冷静期
         
         # 胜率统计
         self.win_count = 0
@@ -137,15 +138,15 @@ class TradingEnv(gym.Env):
             current_pnl_pct = current_pnl / total_cost * 100
             
             # ==================== 优化1: 奖励函数改进 ====================
-            # A. 降低满仓惩罚，鼓励积极建仓 (V23优化)
+            # A. 降低满仓惩罚，鼓励积极建仓
             usage_ratio = num_bullets / self.max_bullets
             if usage_ratio >= 1.0:
-                reward -= 1.5  # V23: 大幅降低满仓惩罚，从4.0降到1.5
+                reward -= 0.5  # 优化：从1.5降到0.5
             elif usage_ratio >= 0.9:
-                reward -= 0.3  # V23: 降低90%以上仓位惩罚，从0.8降到0.3
+                reward -= 0.2  # 优化：从0.3降到0.2
             
-            # B. 降低持仓成本惩罚，鼓励持有 (V23优化)
-            reward -= 0.005 * num_bullets  # V23: 从0.01降到0.005
+            # B. 降低持仓成本惩罚，鼓励持有
+            reward -= 0.002 * num_bullets  # 优化：从0.005降到0.002
             
             # C. 增强趋势对齐奖励
             if price > curr_row['MA20']:
@@ -157,12 +158,12 @@ class TradingEnv(gym.Env):
             # D. 利润增长奖励 - 增强版
             pnl_change = current_pnl_pct - self.prev_floating_profit
             if pnl_change > 0:
-                reward += pnl_change * 3.0  # V23: 从2.5提高到3.0
+                reward += pnl_change * 4.0  # 优化：从3.0提高到4.0
                 self.consecutive_profit_days += 1
                 if self.consecutive_profit_days >= 2:
-                    reward += 0.4 * self.consecutive_profit_days
+                    reward += 0.5 * self.consecutive_profit_days  # 优化：从0.4提高到0.5
             else:
-                reward += pnl_change * 0.3  # V23: 亏损惩罚降低，从0.5降到0.3
+                reward += pnl_change * 0.2  # 优化：从0.3降到0.2
                 self.consecutive_profit_days = max(0, self.consecutive_profit_days - 1)
             
             # E. 小额盈利即时奖励 (V23新增：提高胜率导向)
@@ -234,6 +235,7 @@ class TradingEnv(gym.Env):
             if stop_loss_triggered:
                 reward -= 15  # V23: 止损惩罚大幅降低，从30降到15
                 reward += self._close_all_positions(price, reason=stop_reason)
+                self.stop_loss_cooldown = 3  # 优化：止损后设置3天冷静期
                 self.done = True
                 obs = self._get_observation()
                 self.total_score += reward
@@ -259,17 +261,22 @@ class TradingEnv(gym.Env):
             current_count = len(self.hold_positions)
             available = self.max_bullets - current_count
             
-            # 开仓限制放宽 (V23优化：从5颗增加到7颗)
-            is_new_position = (current_count == 0)
-            max_open_bullets = 7  # V23: 从5增加到7
-            
-            if is_new_position and add_bullets > max_open_bullets:
-                reward -= 1.0  # V23: 惩罚降低，从2.0降到1.0
-                add_bullets = max_open_bullets
-            
-            if available <= 0:
+            # 优化：止损冷静期检查
+            if self.stop_loss_cooldown > 0:
+                self.stop_loss_cooldown -= 1
+                reward -= 1.0  # 冷静期内尝试加仓惩罚
+                action = 0  # 改为持有
+            elif available <= 0:
                 reward -= 1.0  # V23: 惩罚降低，从2.0降到1.0
             else:
+                # 开仓限制放宽 (V23优化：从5颗增加到7颗)
+                is_new_position = (current_count == 0)
+                max_open_bullets = 7  # V23: 从5增加到7
+                
+                if is_new_position and add_bullets > max_open_bullets:
+                    reward -= 1.0  # V23: 惩罚降低，从2.0降到1.0
+                    add_bullets = max_open_bullets
+                
                 actual_add = min(add_bullets, available, self.max_add_per_action)
                 cost_per = self.initial_balance * self.bullet_size
                 total_cost = actual_add * cost_per

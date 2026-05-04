@@ -294,7 +294,7 @@ class IndicatorStrategy:
         self.stop_loss_cooldown = 0  # 止损冷静期
         self.trailing_stop_price = 0  # 追踪止损价
         self.trailing_stop_initialized = False  # 追踪止损是否初始化
-        self.min_trailing_stop = 3.0  # 最小追踪止损百分比
+        self.min_trailing_stop = 5.0  # 优化：最小追踪止损百分比从3%提高到5%
         bullet_size_val = initial_cash * 0.1
         max_bullets = 9  # 9颗封顶
         max_action_bullets = 3
@@ -320,27 +320,27 @@ class IndicatorStrategy:
                 current_value = total_shares * price
                 current_pnl = current_value - total_cost_val
                 
-                # A. 子弹耗尽惩罚 (V5优化版：鼓励上升趋势加仓，轻度控制满仓)
+                # A. 降低满仓惩罚，鼓励积极建仓
                 usage_ratio = num_bullets / max_bullets
                 if usage_ratio >= 1.0:
-                    self.strategy_score -= 4.0
+                    self.strategy_score -= 0.5  # 优化：从4.0降到0.5
                 elif usage_ratio >= 0.9:
-                    self.strategy_score -= 0.8
+                    self.strategy_score -= 0.2  # 优化：从0.8降到0.2
                 
-                # B. 持仓成本 (V21激进版：减少惩罚)
-                self.strategy_score -= 0.01 * num_bullets
+                # B. 降低持仓成本惩罚，鼓励持有
+                self.strategy_score -= 0.002 * num_bullets  # 优化：从0.01降到0.002
                 
                 # C. 趋势对齐奖励
                 if price > row['MA20']:
-                    self.strategy_score += 0.15
+                    self.strategy_score += 0.2  # 优化：从0.15提高到0.2
                 
-                # D. 利润增长奖励 (基于股票收益率计算)
+                # D. 利润增长奖励 - 增强版
                 pnl_change = stock_return_pct - self.prev_floating_profit
                 if pnl_change > 0:
-                    self.strategy_score += pnl_change * 2.5
+                    self.strategy_score += pnl_change * 4.0  # 优化：从2.5提高到4.0
                     self.consecutive_profit_days += 1
                     if self.consecutive_profit_days >= 2:
-                        self.strategy_score += 0.3 * self.consecutive_profit_days
+                        self.strategy_score += 0.5 * self.consecutive_profit_days  # 优化：从0.3提高到0.5
                 else:
                     self.strategy_score += pnl_change * 0.5
                     self.consecutive_profit_days = max(0, self.consecutive_profit_days - 1)
@@ -467,7 +467,7 @@ class IndicatorStrategy:
                 self.prev_floating_profit = 0
                 self.max_trade_profit = 0
                 self.consecutive_profit_days = 0
-                self.stop_loss_cooldown = 5  # 止损后冷静期5天
+                self.stop_loss_cooldown = 3  # 优化：止损后冷静期3天
                 continue
 
             # 2. RL 动作预测 (V2 20维观测空间)
