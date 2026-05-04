@@ -1,0 +1,16 @@
+# RL Trading Live 依赖
+# Python 3.8+
+
+# 强化学习
+stable-baselines3>=2.0.0
+gymnasium>=0.28.0
+
+# 数据获取
+akshare>=1.10.0
+
+# 数据处理
+numpy>=1.24.0
+pandas>=2.0.0
+
+# 其他
+python-dateutil>=2.8.0

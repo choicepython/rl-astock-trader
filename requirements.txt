@@ -1,0 +1,9 @@
+akshare
+pandas
+backtrader
+vectorbt
+matplotlib
+scikit-learn
+gymnasium
+stable-baselines3
+shimmy
